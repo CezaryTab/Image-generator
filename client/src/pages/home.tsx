@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3, Wand2 } from 'lucide-react';
 import {
   PALETTE_GROUPS,
   ProcessingOptions,
@@ -29,6 +30,9 @@ const defaultOptions: ProcessingOptions = {
   maxColorsUsed: 8,
   symmetryMode: 'none',
   detailLevel: 0.5,
+  outlineMode: 'subtle',
+  shading: true,
+  dithering: false,
 };
 
 export default function Home() {
@@ -437,6 +441,68 @@ export default function Home() {
                   <p className="text-xs text-muted-foreground mt-1.5">
                     Higher = more detail, Lower = cleaner/simpler
                   </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-muted-foreground" />
+                AI Enhancement
+              </h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                Make your pixel art look handcrafted
+              </p>
+              
+              <div className="space-y-5">
+                <div>
+                  <Label className="text-sm mb-2 block">Outline Style</Label>
+                  <Select
+                    value={options.outlineMode}
+                    onValueChange={(value: 'none' | 'subtle' | 'bold') =>
+                      updateOption('outlineMode', value)
+                    }
+                  >
+                    <SelectTrigger data-testid="select-outline">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="subtle">Subtle</SelectItem>
+                      <SelectItem value="bold">Bold</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Add hand-drawn style outlines around shapes
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Light & Shadow</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Apply shading based on light direction
+                    </p>
+                  </div>
+                  <Switch
+                    checked={options.shading}
+                    onCheckedChange={(checked) => updateOption('shading', checked)}
+                    data-testid="switch-shading"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Dithering</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Add texture patterns for smoother transitions
+                    </p>
+                  </div>
+                  <Switch
+                    checked={options.dithering}
+                    onCheckedChange={(checked) => updateOption('dithering', checked)}
+                    data-testid="switch-dithering"
+                  />
                 </div>
               </div>
             </Card>
