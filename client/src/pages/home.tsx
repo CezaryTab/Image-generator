@@ -256,7 +256,7 @@ export default function Home() {
                   </div>
                   <div className="bg-muted rounded-md p-4">
                     <div className="text-2xl font-bold text-foreground">
-                      {[...stats.paletteUsage.values()].filter(v => v > 0).length}
+                      {Array.from(stats.paletteUsage.values()).filter(v => v > 0).length}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Colors Used

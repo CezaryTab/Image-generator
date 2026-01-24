@@ -113,7 +113,7 @@ export function processPixelArt(
   }
   
   // Sort and get top N colors
-  const sortedColors = [...colorFrequency.entries()]
+  const sortedColors = Array.from(colorFrequency.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, options.maxColorsUsed)
     .map(([hex]) => PALETTE.find(c => c.hex === hex)!);
