@@ -11,7 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3 } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3, Trash2, Replace, X } from 'lucide-react';
 import {
   PALETTE_GROUPS,
   ProcessingOptions,
@@ -31,6 +36,11 @@ const defaultOptions: ProcessingOptions = {
   detailLevel: 0.5,
 };
 
+interface SelectedColorGroup {
+  name: string;
+  position: { x: number; y: number };
+}
+
 export default function Home() {
   const [sourceImage, setSourceImage] = useState<HTMLImageElement | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
@@ -38,9 +48,12 @@ export default function Home() {
   const [stats, setStats] = useState<ProcessingStats | null>(null);
   const [options, setOptions] = useState<ProcessingOptions>(defaultOptions);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<SelectedColorGroup | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const processImage = useCallback(() => {
     if (!sourceImage) return;
@@ -62,6 +75,165 @@ export default function Home() {
     }
   }, [processImage, sourceImage]);
 
+  const recalculateStats = useCallback((imageData: ImageData) => {
+    const paletteUsage = new Map<string, number>();
+    PALETTE_GROUPS.forEach(g => paletteUsage.set(g.name, 0));
+    
+    let transparentCount = 0;
+    let fallbackCount = 0;
+    let opaqueCount = 0;
+    const data = imageData.data;
+    
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] === 0) {
+        transparentCount++;
+        continue;
+      }
+      
+      opaqueCount++;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      
+      let isPalette = false;
+      for (const group of PALETTE_GROUPS) {
+        for (const color of group.colors) {
+          if (color.r === r && color.g === g && color.b === b) {
+            paletteUsage.set(group.name, (paletteUsage.get(group.name) || 0) + 1);
+            isPalette = true;
+            break;
+          }
+        }
+        if (isPalette) break;
+      }
+      
+      if (!isPalette) {
+        fallbackCount++;
+      }
+    }
+    
+    setStats({
+      fallbackPercent: opaqueCount > 0 ? (fallbackCount / opaqueCount) * 100 : 0,
+      transparentPixels: transparentCount,
+      paletteUsage
+    });
+  }, []);
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!processedData || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = 36 / rect.width;
+    const scaleY = 36 / rect.height;
+    
+    const pixelX = Math.floor((e.clientX - rect.left) * scaleX);
+    const pixelY = Math.floor((e.clientY - rect.top) * scaleY);
+    
+    if (pixelX < 0 || pixelX >= 36 || pixelY < 0 || pixelY >= 36) return;
+    
+    const i = (pixelY * 36 + pixelX) * 4;
+    const r = processedData.data[i];
+    const g = processedData.data[i + 1];
+    const b = processedData.data[i + 2];
+    const a = processedData.data[i + 3];
+    
+    if (a === 0) {
+      setSelectedColor(null);
+      setShowColorPicker(false);
+      return;
+    }
+    
+    for (const group of PALETTE_GROUPS) {
+      for (const color of group.colors) {
+        if (color.r === r && color.g === g && color.b === b) {
+          setSelectedColor({
+            name: group.name,
+            position: { x: e.clientX, y: e.clientY }
+          });
+          setShowColorPicker(true);
+          return;
+        }
+      }
+    }
+    
+    setSelectedColor(null);
+    setShowColorPicker(false);
+  };
+
+  const handleDeleteColor = () => {
+    if (!selectedColor || !processedData) return;
+    
+    const newData = new Uint8ClampedArray(processedData.data);
+    const group = PALETTE_GROUPS.find(g => g.name === selectedColor.name);
+    if (!group) return;
+    
+    for (let i = 0; i < newData.length; i += 4) {
+      const r = newData[i];
+      const g = newData[i + 1];
+      const b = newData[i + 2];
+      
+      for (const color of group.colors) {
+        if (color.r === r && color.g === g && color.b === b) {
+          newData[i] = 0;
+          newData[i + 1] = 0;
+          newData[i + 2] = 0;
+          newData[i + 3] = 0;
+          break;
+        }
+      }
+    }
+    
+    const newImageData = new ImageData(newData, 36, 36);
+    setProcessedData(newImageData);
+    recalculateStats(newImageData);
+    
+    if (canvasRef.current) {
+      drawToCanvas(canvasRef.current, newImageData, 10);
+    }
+    
+    setSelectedColor(null);
+    setShowColorPicker(false);
+  };
+
+  const handleReplaceColor = (replacementGroupName: string) => {
+    if (!selectedColor || !processedData) return;
+    
+    const sourceGroup = PALETTE_GROUPS.find(g => g.name === selectedColor.name);
+    const targetGroup = PALETTE_GROUPS.find(g => g.name === replacementGroupName);
+    if (!sourceGroup || !targetGroup) return;
+    
+    const newData = new Uint8ClampedArray(processedData.data);
+    
+    for (let i = 0; i < newData.length; i += 4) {
+      const r = newData[i];
+      const g = newData[i + 1];
+      const b = newData[i + 2];
+      
+      for (let shadeIdx = 0; shadeIdx < sourceGroup.colors.length; shadeIdx++) {
+        const sourceColor = sourceGroup.colors[shadeIdx];
+        if (sourceColor.r === r && sourceColor.g === g && sourceColor.b === b) {
+          const targetColor = targetGroup.colors[shadeIdx];
+          newData[i] = targetColor.r;
+          newData[i + 1] = targetColor.g;
+          newData[i + 2] = targetColor.b;
+          break;
+        }
+      }
+    }
+    
+    const newImageData = new ImageData(newData, 36, 36);
+    setProcessedData(newImageData);
+    recalculateStats(newImageData);
+    
+    if (canvasRef.current) {
+      drawToCanvas(canvasRef.current, newImageData, 10);
+    }
+    
+    setSelectedColor(null);
+    setShowColorPicker(false);
+  };
+
   const handleFileUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return;
     
@@ -71,6 +243,8 @@ export default function Home() {
       img.onload = () => {
         setSourceImage(img);
         setSourceImageUrl(e.target?.result as string);
+        setSelectedColor(null);
+        setShowColorPicker(false);
       };
       img.src = e.target?.result as string;
     };
@@ -106,6 +280,8 @@ export default function Home() {
     setProcessedData(null);
     setStats(null);
     setOptions(defaultOptions);
+    setSelectedColor(null);
+    setShowColorPicker(false);
   };
 
   const updateOption = <K extends keyof ProcessingOptions>(
@@ -114,6 +290,10 @@ export default function Home() {
   ) => {
     setOptions((prev) => ({ ...prev, [key]: value }));
   };
+
+  const selectedGroup = selectedColor 
+    ? PALETTE_GROUPS.find(g => g.name === selectedColor.name)
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,16 +395,106 @@ export default function Home() {
                   </div>
                   <div>
                     <Label className="text-sm text-muted-foreground mb-3 block">
-                      Pixel Art Output (36x36)
+                      Pixel Art Output (36x36) — Click to edit colors
                     </Label>
-                    <div className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px]">
-                      <canvas
-                        ref={canvasRef}
-                        className="crisp-pixels rounded border border-border"
-                        style={{ width: 288, height: 288 }}
-                        data-testid="canvas-preview"
-                      />
+                    <div 
+                      ref={canvasContainerRef}
+                      className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px] relative"
+                    >
+                      <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
+                        <PopoverTrigger asChild>
+                          <canvas
+                            ref={canvasRef}
+                            className="crisp-pixels rounded border border-border cursor-crosshair"
+                            style={{ width: 288, height: 288 }}
+                            onClick={handleCanvasClick}
+                            data-testid="canvas-preview"
+                          />
+                        </PopoverTrigger>
+                        {selectedColor && selectedGroup && (
+                          <PopoverContent 
+                            className="w-64 p-3"
+                            side="right"
+                            align="start"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex gap-0.5">
+                                    {selectedGroup.colors.map((color, idx) => (
+                                      <div
+                                        key={color.hex}
+                                        className={`w-5 h-5 border border-border ${
+                                          idx === 0 ? 'rounded-l' : idx === 2 ? 'rounded-r' : ''
+                                        }`}
+                                        style={{ backgroundColor: `#${color.hex}` }}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="font-medium text-sm">{selectedColor.name}</span>
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => setShowColorPicker(false)}
+                                  data-testid="button-close-picker"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="flex-1"
+                                  onClick={handleDeleteColor}
+                                  data-testid="button-delete-color"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                              
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-2 block">
+                                  Replace with:
+                                </Label>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {PALETTE_GROUPS.filter(g => g.name !== selectedColor.name).map((group) => (
+                                    <button
+                                      key={group.name}
+                                      className="group relative p-1 rounded hover-elevate border border-transparent hover:border-border"
+                                      onClick={() => handleReplaceColor(group.name)}
+                                      title={group.name}
+                                      data-testid={`button-replace-${group.name.toLowerCase()}`}
+                                    >
+                                      <div className="flex gap-px">
+                                        {group.colors.map((color, idx) => (
+                                          <div
+                                            key={color.hex}
+                                            className={`w-3 h-6 ${
+                                              idx === 0 ? 'rounded-l-sm' : idx === 2 ? 'rounded-r-sm' : ''
+                                            }`}
+                                            style={{ backgroundColor: `#${color.hex}` }}
+                                          />
+                                        ))}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        )}
+                      </Popover>
                     </div>
+                    {processedData && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Click on any color to delete or replace it
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
