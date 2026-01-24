@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3 } from 'lucide-react';
 import {
-  PALETTE,
+  PALETTE_GROUPS,
   ProcessingOptions,
   ProcessingStats,
   preprocessImage,
@@ -265,21 +265,28 @@ export default function Home() {
                 </div>
 
                 <Label className="text-sm text-muted-foreground mb-3 block">
-                  Palette Usage
+                  Palette Usage (grouped by color)
                 </Label>
                 <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
-                  {PALETTE.map((color) => {
-                    const count = stats.paletteUsage.get(color.hex) || 0;
+                  {PALETTE_GROUPS.map((group) => {
+                    const count = stats.paletteUsage.get(group.name) || 0;
                     const total = 36 * 36;
                     const percent = ((count / total) * 100).toFixed(1);
                     
                     return (
-                      <div key={color.hex} className="text-center">
-                        <div
-                          className="w-full aspect-square rounded-md mb-2 border border-border"
-                          style={{ backgroundColor: `#${color.hex}` }}
-                          title={`${color.name}: ${count} pixels`}
-                        />
+                      <div key={group.name} className="text-center">
+                        <div className="flex gap-0.5 mb-2">
+                          {group.colors.map((color, idx) => (
+                            <div
+                              key={color.hex}
+                              className={`flex-1 aspect-square border border-border ${
+                                idx === 0 ? 'rounded-l-md' : idx === 2 ? 'rounded-r-md' : ''
+                              }`}
+                              style={{ backgroundColor: `#${color.hex}` }}
+                              title={`${group.name} (${color.shade}): #${color.hex}`}
+                            />
+                          ))}
+                        </div>
                         <div className="text-xs font-medium">{count}</div>
                         <div className="text-xs text-muted-foreground">
                           {percent}%
@@ -380,7 +387,7 @@ export default function Home() {
                     data-testid="slider-max-colors"
                   />
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    Limit the number of palette colors used
+                    Limit the number of color groups used
                   </p>
                 </div>
 
@@ -436,26 +443,37 @@ export default function Home() {
 
             <Card className="p-5">
               <h2 className="text-lg font-semibold mb-4">Color Palette</h2>
-              <div className="grid grid-cols-4 gap-2">
-                {PALETTE.map((color) => (
+              <p className="text-xs text-muted-foreground mb-3">
+                8 color groups, each with main + 2 darker shades
+              </p>
+              <div className="space-y-2">
+                {PALETTE_GROUPS.map((group) => (
                   <div
-                    key={color.hex}
-                    className="group relative"
-                    title={`${color.name}: #${color.hex}`}
+                    key={group.name}
+                    className="flex items-center gap-3"
                   >
-                    <div
-                      className="aspect-square rounded-md border border-border"
-                      style={{ backgroundColor: `#${color.hex}` }}
-                    />
-                    <div className="invisible group-hover:visible absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs bg-popover text-popover-foreground px-2 py-1 rounded shadow-md whitespace-nowrap z-10">
-                      #{color.hex}
+                    <span className="text-xs text-muted-foreground w-14 shrink-0">
+                      {group.name}
+                    </span>
+                    <div className="flex gap-1 flex-1">
+                      {group.colors.map((color, idx) => (
+                        <div
+                          key={color.hex}
+                          className={`group relative flex-1 h-8 border border-border ${
+                            idx === 0 ? 'rounded-l-md' : idx === 2 ? 'rounded-r-md' : ''
+                          }`}
+                          style={{ backgroundColor: `#${color.hex}` }}
+                          title={`#${color.hex}`}
+                        >
+                          <div className="invisible group-hover:visible absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs bg-popover text-popover-foreground px-2 py-1 rounded shadow-md whitespace-nowrap z-10">
+                            #{color.hex}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                Fixed 8-color palette for pixel art output
-              </p>
             </Card>
           </div>
         </div>

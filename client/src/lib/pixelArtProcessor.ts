@@ -1,16 +1,92 @@
-// Fixed 8-color palette
-export const PALETTE = [
-  { hex: 'FA181C', r: 250, g: 24, b: 28, name: 'Red' },
-  { hex: 'FD8305', r: 253, g: 131, b: 5, name: 'Orange' },
-  { hex: 'FDE91A', r: 253, g: 233, b: 26, name: 'Yellow' },
-  { hex: '49CB05', r: 73, g: 203, b: 5, name: 'Green' },
-  { hex: '39B1DB', r: 57, g: 177, b: 219, name: 'Cyan' },
-  { hex: '4432D4', r: 68, g: 50, b: 212, name: 'Blue' },
-  { hex: '7F20CA', r: 127, g: 32, b: 202, name: 'Purple' },
-  { hex: 'DB45D0', r: 219, g: 69, b: 208, name: 'Pink' },
+// Fixed 8-color palette with 2 darker shades each
+export const PALETTE_GROUPS = [
+  {
+    name: 'Red',
+    colors: [
+      { hex: 'FA181C', r: 250, g: 24, b: 28, shade: 'main' },
+      { hex: 'B31114', r: 179, g: 17, b: 20, shade: 'dark' },
+      { hex: '7F0A0C', r: 127, g: 10, b: 12, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Orange',
+    colors: [
+      { hex: 'FD8305', r: 253, g: 131, b: 5, shade: 'main' },
+      { hex: 'B55E04', r: 181, g: 94, b: 4, shade: 'dark' },
+      { hex: '804203', r: 128, g: 66, b: 3, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Yellow',
+    colors: [
+      { hex: 'FDE91A', r: 253, g: 233, b: 26, shade: 'main' },
+      { hex: 'B5A713', r: 181, g: 167, b: 19, shade: 'dark' },
+      { hex: '80760D', r: 128, g: 118, b: 13, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Green',
+    colors: [
+      { hex: '49CB05', r: 73, g: 203, b: 5, shade: 'main' },
+      { hex: '349104', r: 52, g: 145, b: 4, shade: 'dark' },
+      { hex: '256603', r: 37, g: 102, b: 3, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Cyan',
+    colors: [
+      { hex: '39B1DB', r: 57, g: 177, b: 219, shade: 'main' },
+      { hex: '297F9D', r: 41, g: 127, b: 157, shade: 'dark' },
+      { hex: '1D596F', r: 29, g: 89, b: 111, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Blue',
+    colors: [
+      { hex: '4432D4', r: 68, g: 50, b: 212, shade: 'main' },
+      { hex: '312498', r: 49, g: 36, b: 152, shade: 'dark' },
+      { hex: '23196B', r: 35, g: 25, b: 107, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Purple',
+    colors: [
+      { hex: '7F20CA', r: 127, g: 32, b: 202, shade: 'main' },
+      { hex: '5B1791', r: 91, g: 23, b: 145, shade: 'dark' },
+      { hex: '401066', r: 64, g: 16, b: 102, shade: 'darker' },
+    ],
+  },
+  {
+    name: 'Pink',
+    colors: [
+      { hex: 'DB45D0', r: 219, g: 69, b: 208, shade: 'main' },
+      { hex: '9D3195', r: 157, g: 49, b: 149, shade: 'dark' },
+      { hex: '6F2369', r: 111, g: 35, b: 105, shade: 'darker' },
+    ],
+  },
 ] as const;
 
-export type PaletteColor = typeof PALETTE[number];
+export type PaletteGroup = typeof PALETTE_GROUPS[number];
+export type PaletteColor = PaletteGroup['colors'][number] & { groupName: string };
+
+// Flatten palette for color matching
+export function getAllPaletteColors(): PaletteColor[] {
+  const colors: PaletteColor[] = [];
+  for (const group of PALETTE_GROUPS) {
+    for (const color of group.colors) {
+      colors.push({ ...color, groupName: group.name });
+    }
+  }
+  return colors;
+}
+
+// Get main colors only (for max colors limiting)
+export function getMainPaletteColors(): PaletteColor[] {
+  return PALETTE_GROUPS.map(group => ({
+    ...group.colors[0],
+    groupName: group.name,
+  }));
+}
 
 export interface ProcessingOptions {
   fallbackMode: 'transparent' | 'fallback';
@@ -24,7 +100,7 @@ export interface ProcessingOptions {
 export interface ProcessingStats {
   fallbackPercent: number;
   transparentPixels: number;
-  paletteUsage: Map<string, number>;
+  paletteUsage: Map<string, number>; // Group name -> count
 }
 
 export interface ProcessedResult {
@@ -46,8 +122,11 @@ function getLuminance(r: number, g: number, b: number): number {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
-// Find nearest palette color
-function findNearestPaletteColor(r: number, g: number, b: number, allowedColors: PaletteColor[]): { color: PaletteColor; distance: number } {
+// Find nearest palette color from allowed colors
+function findNearestPaletteColor(
+  r: number, g: number, b: number,
+  allowedColors: PaletteColor[]
+): { color: PaletteColor; distance: number } {
   let minDist = Infinity;
   let nearest = allowedColors[0];
   
@@ -95,10 +174,13 @@ export function processPixelArt(
   // Create output buffer
   const output = new Uint8ClampedArray(data.length);
   
-  // Determine which palette colors are allowed based on maxColorsUsed
-  // First pass: count frequency of each palette color
-  const colorFrequency = new Map<string, number>();
-  PALETTE.forEach(c => colorFrequency.set(c.hex, 0));
+  // Get all colors with shades
+  const allColors = getAllPaletteColors();
+  
+  // Determine which color groups are allowed based on maxColorsUsed
+  // First pass: count frequency of each color group
+  const groupFrequency = new Map<string, number>();
+  PALETTE_GROUPS.forEach(g => groupFrequency.set(g.name, 0));
   
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -108,15 +190,18 @@ export function processPixelArt(
     
     if (a < 128) continue;
     
-    const { color } = findNearestPaletteColor(r, g, b, [...PALETTE]);
-    colorFrequency.set(color.hex, (colorFrequency.get(color.hex) || 0) + 1);
+    const { color } = findNearestPaletteColor(r, g, b, allColors);
+    groupFrequency.set(color.groupName, (groupFrequency.get(color.groupName) || 0) + 1);
   }
   
-  // Sort and get top N colors
-  const sortedColors = Array.from(colorFrequency.entries())
+  // Sort and get top N color groups
+  const allowedGroups = Array.from(groupFrequency.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, options.maxColorsUsed)
-    .map(([hex]) => PALETTE.find(c => c.hex === hex)!);
+    .map(([name]) => name);
+  
+  // Filter allowed colors to only those in allowed groups
+  const allowedColors = allColors.filter(c => allowedGroups.includes(c.groupName));
   
   // Threshold for "close enough" (max RGB distance is sqrt(3 * 255^2) ≈ 441)
   const threshold = options.closenessThreshold * 441;
@@ -150,7 +235,7 @@ export function processPixelArt(
       continue;
     }
     
-    const { color: nearestColor, distance } = findNearestPaletteColor(r, g, b, sortedColors);
+    const { color: nearestColor, distance } = findNearestPaletteColor(r, g, b, allowedColors);
     
     // Check if close enough
     const isCloseEnough = distance <= threshold;
@@ -320,9 +405,9 @@ export function processPixelArt(
     }
   }
   
-  // Calculate final stats
+  // Calculate final stats - group by color group name
   const paletteUsage = new Map<string, number>();
-  PALETTE.forEach(c => paletteUsage.set(c.hex, 0));
+  PALETTE_GROUPS.forEach(g => paletteUsage.set(g.name, 0));
   
   let transparentCount = 0;
   let fallbackCount = 0;
@@ -339,13 +424,17 @@ export function processPixelArt(
     const g = output[i + 1];
     const b = output[i + 2];
     
+    // Find which group this color belongs to
     let isPalette = false;
-    for (const color of PALETTE) {
-      if (color.r === r && color.g === g && color.b === b) {
-        paletteUsage.set(color.hex, (paletteUsage.get(color.hex) || 0) + 1);
-        isPalette = true;
-        break;
+    for (const group of PALETTE_GROUPS) {
+      for (const color of group.colors) {
+        if (color.r === r && color.g === g && color.b === b) {
+          paletteUsage.set(group.name, (paletteUsage.get(group.name) || 0) + 1);
+          isPalette = true;
+          break;
+        }
       }
+      if (isPalette) break;
     }
     
     if (!isPalette) {
