@@ -1,0 +1,137 @@
+Build an interactive web tool that converts an uploaded image into minimalistic 36x36 pixel art with a manually defined 8-color palette, live preview, and basic refinement to make the result clean and symmetrical.
+
+Core behavior
+
+Web app, single page, all processing in the browser using HTML Canvas.
+
+User uploads an image (PNG/JPG).
+
+Convert to fixed 36x36 output:
+
+Center-crop the input to a square.
+
+Downscale to 36x36.
+
+Preserve transparency if the input has alpha.
+
+Fixed palette (8 colors)
+
+Use this exact palette (hex, no # in storage but display with #):
+
+FA181C
+
+FD8305
+
+FDE91A
+
+49CB05
+
+39B1DB
+
+4432D4
+
+7F20CA
+
+DB45D0
+
+These 8 colors are the “main groups”. Output pixels should map to one of these colors unless they become transparent or fallback.
+
+Color categorization rules
+
+For every non-transparent pixel in the 36x36 image:
+
+Find the nearest palette color (distance in RGB is OK for MVP).
+
+Assign the pixel to that palette color if it is “close enough”.
+
+Any pixel that is not close enough to any palette color must be handled by one of two modes:
+
+Transparent mode: treat it as transparent (alpha = 0).
+
+Fallback mode: keep it as a fallback color (not in the 8 palette colors).
+
+Fallback constraints
+
+Fallback pixels must be limited to a user-selectable percentage:
+
+Default 7%
+
+Allowed range 5% to 10%
+
+If fallback exceeds the limit, automatically reduce it by converting the “least important” fallback pixels to the nearest palette color (or to transparent, depending on the selected mode).
+
+Fallback colors must not be very dark:
+
+Enforce a brightness threshold (simple luminance rule is fine for MVP).
+
+If a fallback color is too dark, replace it with the nearest palette color instead of keeping it as fallback.
+
+Minimalistic refinement steps (post-processing)
+
+After initial mapping, run refinement passes to make the result cleaner and more symmetrical:
+
+Noise cleanup:
+
+Remove 1-pixel speckles (isolated pixels) by converting them to the majority color in their 8-neighborhood.
+
+Simplification:
+
+Optional slider: “detail level” controlling how aggressively small regions get merged.
+
+Symmetry assist:
+
+User can choose symmetry mode: None, Vertical, Horizontal.
+
+If symmetry is enabled, mirror the pixels across the chosen axis and resolve conflicts by majority vote or palette-nearest rule.
+
+Edge clarity:
+
+Reduce jagged single-pixel protrusions using a small morphological rule (simple heuristics are fine).
+
+Palette usage control with live preview
+
+Provide controls to reduce the number of palette colors used:
+
+User selects maxColorsUsed from 1 to 8.
+
+Tool keeps the maxColorsUsed most frequent palette colors and remaps all other palette-assigned pixels to the nearest remaining color.
+
+Update preview immediately.
+
+UI requirements
+
+Image upload
+
+Live 36x36 preview (scaled up with crisp nearest-neighbor rendering)
+
+Controls:
+
+Fallback handling mode (Transparent or Fallback)
+
+Fallback pixel cap slider (5%–10%, default 7%)
+
+“Closeness threshold” slider for palette assignment
+
+“Max palette colors used” selector (1–8) with live preview
+
+Symmetry mode selector (None, Vertical, Horizontal)
+
+Detail/simplification slider
+
+Display stats on the page (not exported):
+
+% fallback pixels
+
+count of each palette color used
+
+number of transparent pixels
+
+Implementation notes
+
+Use Canvas ImageData for pixel manipulation.
+
+Keep processing deterministic and fast (36x36 only).
+
+No server, no AI required for MVP.
+
+Deliver a working Replit project with clean code structure and these features implemented.
