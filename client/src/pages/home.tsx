@@ -31,7 +31,7 @@ const defaultOptions: ProcessingOptions = {
   fallbackMode: 'fallback',
   fallbackCapPercent: 7,
   closenessThreshold: 0.3,
-  maxColorsUsed: 8,
+  maxColorsUsed: 9,
   symmetryMode: 'none',
   detailLevel: 0.5,
 };
@@ -306,7 +306,7 @@ export default function Home() {
             <h1 className="text-3xl font-bold tracking-tight">Pixel Art Converter</h1>
           </div>
           <p className="text-muted-foreground max-w-lg mx-auto">
-            Transform any image into minimalistic 36x36 pixel art with a curated 8-color palette
+            Transform any image into minimalistic 36x36 pixel art with a curated 9-color palette
           </p>
         </header>
 
@@ -649,7 +649,7 @@ export default function Home() {
                   <Slider
                     value={[options.maxColorsUsed]}
                     min={1}
-                    max={8}
+                    max={9}
                     step={1}
                     onValueChange={([value]) =>
                       updateOption('maxColorsUsed', value)
@@ -714,7 +714,7 @@ export default function Home() {
             <Card className="p-5">
               <h2 className="text-lg font-semibold mb-4">Color Palette</h2>
               <p className="text-xs text-muted-foreground mb-3">
-                8 color groups, each with main + 2 darker shades
+                9 color groups, each with 3 shades
               </p>
               <div className="space-y-2">
                 {PALETTE_GROUPS.map((group) => (

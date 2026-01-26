@@ -64,6 +64,14 @@ export const PALETTE_GROUPS = [
       { hex: '6F2369', r: 111, g: 35, b: 105, shade: 'darker' },
     ],
   },
+  {
+    name: 'Gray',
+    colors: [
+      { hex: 'AFAFAF', r: 175, g: 175, b: 175, shade: 'main' },
+      { hex: '949494', r: 148, g: 148, b: 148, shade: 'dark' },
+      { hex: '605F5F', r: 96, g: 95, b: 95, shade: 'darker' },
+    ],
+  },
 ] as const;
 
 export type PaletteGroup = typeof PALETTE_GROUPS[number];
