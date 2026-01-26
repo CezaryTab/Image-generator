@@ -116,6 +116,13 @@ export interface ProcessedResult {
   stats: ProcessingStats;
 }
 
+export interface CropRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // Calculate RGB distance between two colors
 function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
   return Math.sqrt(
@@ -149,25 +156,48 @@ function findNearestPaletteColor(
   return { color: nearest, distance: minDist };
 }
 
-// Center crop and scale image to 36x36
-export function preprocessImage(image: HTMLImageElement): ImageData {
+// Crop and scale image to 36x36
+export function preprocessImage(image: HTMLImageElement, cropRegion?: CropRegion): ImageData {
   const canvas = document.createElement('canvas');
   canvas.width = 36;
   canvas.height = 36;
   const ctx = canvas.getContext('2d')!;
   
-  // Calculate center crop
-  const size = Math.min(image.width, image.height);
-  const sx = (image.width - size) / 2;
-  const sy = (image.height - size) / 2;
+  let sx: number, sy: number, sWidth: number, sHeight: number;
+  
+  if (cropRegion) {
+    // Use custom crop region
+    sx = cropRegion.x;
+    sy = cropRegion.y;
+    sWidth = cropRegion.width;
+    sHeight = cropRegion.height;
+  } else {
+    // Default: center crop to square
+    const size = Math.min(image.width, image.height);
+    sx = (image.width - size) / 2;
+    sy = (image.height - size) / 2;
+    sWidth = size;
+    sHeight = size;
+  }
   
   // Disable smoothing for crisp pixels
   ctx.imageSmoothingEnabled = false;
   
   // Draw cropped and scaled image
-  ctx.drawImage(image, sx, sy, size, size, 0, 0, 36, 36);
+  ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, 36, 36);
   
   return ctx.getImageData(0, 0, 36, 36);
+}
+
+// Get default center crop for an image
+export function getDefaultCrop(imageWidth: number, imageHeight: number): CropRegion {
+  const size = Math.min(imageWidth, imageHeight);
+  return {
+    x: (imageWidth - size) / 2,
+    y: (imageHeight - size) / 2,
+    width: size,
+    height: size,
+  };
 }
 
 // Main processing function

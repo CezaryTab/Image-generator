@@ -16,15 +16,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3, Trash2, Replace, X } from 'lucide-react';
+import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3, Trash2, X, Crop } from 'lucide-react';
 import {
   PALETTE_GROUPS,
   ProcessingOptions,
   ProcessingStats,
+  CropRegion,
   preprocessImage,
   processPixelArt,
   drawToCanvas,
   exportAsPng,
+  getDefaultCrop,
 } from '@/lib/pixelArtProcessor';
 
 const defaultOptions: ProcessingOptions = {
@@ -41,6 +43,8 @@ interface SelectedColorGroup {
   position: { x: number; y: number };
 }
 
+type DragHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'move' | null;
+
 export default function Home() {
   const [sourceImage, setSourceImage] = useState<HTMLImageElement | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
@@ -51,14 +55,19 @@ export default function Home() {
   const [selectedColor, setSelectedColor] = useState<SelectedColorGroup | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   
+  const [cropRegion, setCropRegion] = useState<CropRegion | null>(null);
+  const [dragHandle, setDragHandle] = useState<DragHandle>(null);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; crop: CropRegion } | null>(null);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const cropImageRef = useRef<HTMLImageElement>(null);
+  const cropContainerRef = useRef<HTMLDivElement>(null);
 
   const processImage = useCallback(() => {
-    if (!sourceImage) return;
+    if (!sourceImage || !cropRegion) return;
     
-    const sourceData = preprocessImage(sourceImage);
+    const sourceData = preprocessImage(sourceImage, cropRegion);
     const result = processPixelArt(sourceData, options);
     
     setProcessedData(result.imageData);
@@ -67,13 +76,13 @@ export default function Home() {
     if (canvasRef.current) {
       drawToCanvas(canvasRef.current, result.imageData, 10);
     }
-  }, [sourceImage, options]);
+  }, [sourceImage, cropRegion, options]);
 
   useEffect(() => {
-    if (sourceImage) {
+    if (sourceImage && cropRegion) {
       processImage();
     }
-  }, [processImage, sourceImage]);
+  }, [processImage, sourceImage, cropRegion]);
 
   const recalculateStats = useCallback((imageData: ImageData) => {
     const paletteUsage = new Map<string, number>();
@@ -118,6 +127,79 @@ export default function Home() {
       paletteUsage
     });
   }, []);
+
+  const getImageDisplayScale = useCallback(() => {
+    if (!cropImageRef.current || !sourceImage) return 1;
+    return cropImageRef.current.clientWidth / sourceImage.width;
+  }, [sourceImage]);
+
+  const handleCropMouseDown = (e: React.MouseEvent, handle: DragHandle) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!cropRegion) return;
+    
+    setDragHandle(handle);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      crop: { ...cropRegion }
+    });
+  };
+
+  const handleCropMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragHandle || !dragStart || !sourceImage || !cropRegion) return;
+    
+    const scale = getImageDisplayScale();
+    const dx = (e.clientX - dragStart.x) / scale;
+    const dy = (e.clientY - dragStart.y) / scale;
+    
+    const minSize = 36;
+    let newCrop = { ...dragStart.crop };
+    
+    if (dragHandle === 'move') {
+      newCrop.x = Math.max(0, Math.min(sourceImage.width - newCrop.width, dragStart.crop.x + dx));
+      newCrop.y = Math.max(0, Math.min(sourceImage.height - newCrop.height, dragStart.crop.y + dy));
+    } else {
+      if (dragHandle.includes('w')) {
+        const maxDx = dragStart.crop.width - minSize;
+        const actualDx = Math.max(-dragStart.crop.x, Math.min(maxDx, dx));
+        newCrop.x = dragStart.crop.x + actualDx;
+        newCrop.width = dragStart.crop.width - actualDx;
+      }
+      if (dragHandle.includes('e')) {
+        const maxWidth = sourceImage.width - dragStart.crop.x;
+        newCrop.width = Math.max(minSize, Math.min(maxWidth, dragStart.crop.width + dx));
+      }
+      if (dragHandle.includes('n')) {
+        const maxDy = dragStart.crop.height - minSize;
+        const actualDy = Math.max(-dragStart.crop.y, Math.min(maxDy, dy));
+        newCrop.y = dragStart.crop.y + actualDy;
+        newCrop.height = dragStart.crop.height - actualDy;
+      }
+      if (dragHandle.includes('s')) {
+        const maxHeight = sourceImage.height - dragStart.crop.y;
+        newCrop.height = Math.max(minSize, Math.min(maxHeight, dragStart.crop.height + dy));
+      }
+    }
+    
+    setCropRegion(newCrop);
+  }, [dragHandle, dragStart, sourceImage, cropRegion, getImageDisplayScale]);
+
+  const handleCropMouseUp = useCallback(() => {
+    setDragHandle(null);
+    setDragStart(null);
+  }, []);
+
+  useEffect(() => {
+    if (dragHandle) {
+      window.addEventListener('mousemove', handleCropMouseMove);
+      window.addEventListener('mouseup', handleCropMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleCropMouseMove);
+        window.removeEventListener('mouseup', handleCropMouseUp);
+      };
+    }
+  }, [dragHandle, handleCropMouseMove, handleCropMouseUp]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!processedData || !canvasRef.current) return;
@@ -243,6 +325,7 @@ export default function Home() {
       img.onload = () => {
         setSourceImage(img);
         setSourceImageUrl(e.target?.result as string);
+        setCropRegion(getDefaultCrop(img.width, img.height));
         setSelectedColor(null);
         setShowColorPicker(false);
       };
@@ -280,8 +363,15 @@ export default function Home() {
     setProcessedData(null);
     setStats(null);
     setOptions(defaultOptions);
+    setCropRegion(null);
     setSelectedColor(null);
     setShowColorPicker(false);
+  };
+
+  const handleResetCrop = () => {
+    if (sourceImage) {
+      setCropRegion(getDefaultCrop(sourceImage.width, sourceImage.height));
+    }
   };
 
   const updateOption = <K extends keyof ProcessingOptions>(
@@ -294,6 +384,94 @@ export default function Home() {
   const selectedGroup = selectedColor 
     ? PALETTE_GROUPS.find(g => g.name === selectedColor.name)
     : null;
+
+  const renderCropOverlay = () => {
+    if (!cropRegion || !sourceImage || !cropImageRef.current) return null;
+    
+    const scale = getImageDisplayScale();
+    const cropStyle = {
+      left: cropRegion.x * scale,
+      top: cropRegion.y * scale,
+      width: cropRegion.width * scale,
+      height: cropRegion.height * scale,
+    };
+    
+    const handleSize = 10;
+    const handleStyle = "absolute bg-white border-2 border-primary rounded-sm";
+    
+    return (
+      <>
+        <div 
+          className="absolute inset-0 bg-black/50 pointer-events-none"
+          style={{
+            clipPath: `polygon(
+              0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
+              ${cropStyle.left}px ${cropStyle.top}px,
+              ${cropStyle.left}px ${cropStyle.top + cropStyle.height}px,
+              ${cropStyle.left + cropStyle.width}px ${cropStyle.top + cropStyle.height}px,
+              ${cropStyle.left + cropStyle.width}px ${cropStyle.top}px,
+              ${cropStyle.left}px ${cropStyle.top}px
+            )`
+          }}
+        />
+        <div
+          className="absolute border-2 border-white border-dashed cursor-move"
+          style={cropStyle}
+          onMouseDown={(e) => handleCropMouseDown(e, 'move')}
+          data-testid="crop-area"
+        >
+          <div 
+            className={`${handleStyle} -left-1.5 -top-1.5 cursor-nw-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'nw')}
+            data-testid="crop-handle-nw"
+          />
+          <div 
+            className={`${handleStyle} -right-1.5 -top-1.5 cursor-ne-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'ne')}
+            data-testid="crop-handle-ne"
+          />
+          <div 
+            className={`${handleStyle} -left-1.5 -bottom-1.5 cursor-sw-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'sw')}
+            data-testid="crop-handle-sw"
+          />
+          <div 
+            className={`${handleStyle} -right-1.5 -bottom-1.5 cursor-se-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'se')}
+            data-testid="crop-handle-se"
+          />
+          <div 
+            className={`${handleStyle} left-1/2 -translate-x-1/2 -top-1.5 cursor-n-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'n')}
+            data-testid="crop-handle-n"
+          />
+          <div 
+            className={`${handleStyle} left-1/2 -translate-x-1/2 -bottom-1.5 cursor-s-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 's')}
+            data-testid="crop-handle-s"
+          />
+          <div 
+            className={`${handleStyle} -left-1.5 top-1/2 -translate-y-1/2 cursor-w-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'w')}
+            data-testid="crop-handle-w"
+          />
+          <div 
+            className={`${handleStyle} -right-1.5 top-1/2 -translate-y-1/2 cursor-e-resize`}
+            style={{ width: handleSize, height: handleSize }}
+            onMouseDown={(e) => handleCropMouseDown(e, 'e')}
+            data-testid="crop-handle-e"
+          />
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -320,6 +498,15 @@ export default function Home() {
                 </h2>
                 {processedData && (
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleResetCrop}
+                      data-testid="button-reset-crop"
+                    >
+                      <Crop className="w-4 h-4 mr-2" />
+                      Reset Crop
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -379,18 +566,27 @@ export default function Home() {
               ) : (
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-sm text-muted-foreground mb-3 block">
-                      Original Image
+                    <Label className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                      <Crop className="w-4 h-4" />
+                      Drag to crop — Original Image
                     </Label>
-                    <div className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px]">
-                      {sourceImageUrl && (
-                        <img
-                          src={sourceImageUrl}
-                          alt="Original"
-                          className="max-w-full max-h-72 object-contain rounded"
-                          data-testid="img-original"
-                        />
-                      )}
+                    <div 
+                      ref={cropContainerRef}
+                      className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px]"
+                    >
+                      <div className="relative inline-block select-none">
+                        {sourceImageUrl && (
+                          <img
+                            ref={cropImageRef}
+                            src={sourceImageUrl}
+                            alt="Original"
+                            className="max-w-full max-h-72 object-contain rounded"
+                            draggable={false}
+                            data-testid="img-original"
+                          />
+                        )}
+                        {cropImageRef.current && renderCropOverlay()}
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -398,7 +594,6 @@ export default function Home() {
                       Pixel Art Output (36x36) — Click to edit colors
                     </Label>
                     <div 
-                      ref={canvasContainerRef}
                       className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px] relative"
                     >
                       <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
@@ -537,7 +732,7 @@ export default function Home() {
                 <Label className="text-sm text-muted-foreground mb-3 block">
                   Palette Usage (grouped by color)
                 </Label>
-                <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-9 gap-3">
                   {PALETTE_GROUPS.map((group) => {
                     const count = stats.paletteUsage.get(group.name) || 0;
                     const total = 36 * 36;
