@@ -526,3 +526,95 @@ export function exportAsPng(imageData: ImageData): void {
   link.href = canvas.toDataURL('image/png');
   link.click();
 }
+
+// Unity-compatible JSON export format
+export interface PixelData {
+  colorGroup: string;
+  shadeIndex: number;
+  hex: string;
+}
+
+export interface UnityExportFormat {
+  version: string;
+  width: number;
+  height: number;
+  palette: {
+    name: string;
+    colors: { hex: string; shade: string }[];
+  }[];
+  pixels: (PixelData | null)[][];
+}
+
+// Export as JSON for Unity
+export function exportAsJson(imageData: ImageData): void {
+  const data = imageData.data;
+  const pixels: (PixelData | null)[][] = [];
+  
+  for (let y = 0; y < 36; y++) {
+    const row: (PixelData | null)[] = [];
+    for (let x = 0; x < 36; x++) {
+      const i = (y * 36 + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      
+      if (a === 0) {
+        row.push(null);
+        continue;
+      }
+      
+      let found = false;
+      for (const group of PALETTE_GROUPS) {
+        for (let shadeIdx = 0; shadeIdx < group.colors.length; shadeIdx++) {
+          const color = group.colors[shadeIdx];
+          if (color.r === r && color.g === g && color.b === b) {
+            row.push({
+              colorGroup: group.name,
+              shadeIndex: shadeIdx,
+              hex: color.hex
+            });
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      
+      if (!found) {
+        const hex = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0').toUpperCase();
+        row.push({
+          colorGroup: 'Fallback',
+          shadeIndex: 0,
+          hex: hex
+        });
+      }
+    }
+    pixels.push(row);
+  }
+  
+  const exportData: UnityExportFormat = {
+    version: '1.0',
+    width: 36,
+    height: 36,
+    palette: PALETTE_GROUPS.map(group => ({
+      name: group.name,
+      colors: group.colors.map(c => ({
+        hex: c.hex,
+        shade: c.shade
+      }))
+    })),
+    pixels: pixels
+  };
+  
+  const jsonString = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.download = 'pixel-art-level.json';
+  link.href = url;
+  link.click();
+  
+  URL.revokeObjectURL(url);
+}

@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Upload, Download, RefreshCw, ImageIcon, Sparkles, Grid3X3, Trash2, X, Crop } from 'lucide-react';
+import { Upload, FileJson, RefreshCw, ImageIcon, Sparkles, Grid3X3, Trash2, X, Crop } from 'lucide-react';
 import {
   PALETTE_GROUPS,
   ProcessingOptions,
@@ -25,7 +25,7 @@ import {
   preprocessImage,
   processPixelArt,
   drawToCanvas,
-  exportAsPng,
+  exportAsJson,
   getDefaultCrop,
 } from '@/lib/pixelArtProcessor';
 
@@ -353,7 +353,7 @@ export default function Home() {
 
   const handleExport = () => {
     if (processedData) {
-      exportAsPng(processedData);
+      exportAsJson(processedData);
     }
   };
 
@@ -521,8 +521,8 @@ export default function Home() {
                       onClick={handleExport}
                       data-testid="button-export"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export PNG
+                      <FileJson className="w-4 h-4 mr-2" />
+                      Export JSON
                     </Button>
                   </div>
                 )}
