@@ -156,37 +156,44 @@ function findNearestPaletteColor(
   return { color: nearest, distance: minDist };
 }
 
-// Crop and scale image to 36x36
-export function preprocessImage(image: HTMLImageElement, cropRegion?: CropRegion): ImageData {
+// Output size constraints
+export const MIN_OUTPUT_SIZE = 30;
+export const MAX_OUTPUT_SIZE = 48;
+export const DEFAULT_OUTPUT_SIZE = 36;
+
+// Crop and scale image to specified output size
+export function preprocessImage(image: HTMLImageElement, outputSize: number = DEFAULT_OUTPUT_SIZE, cropRegion?: CropRegion): ImageData {
+  const size = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputSize)));
+  
   const canvas = document.createElement('canvas');
-  canvas.width = 36;
-  canvas.height = 36;
+  canvas.width = size;
+  canvas.height = size;
   const ctx = canvas.getContext('2d')!;
   
   let sx: number, sy: number, sWidth: number, sHeight: number;
   
   if (cropRegion) {
-    // Use custom crop region
-    sx = cropRegion.x;
-    sy = cropRegion.y;
-    sWidth = cropRegion.width;
-    sHeight = cropRegion.height;
+    // Use custom crop region (must be square) - round to integers for Canvas API
+    sx = Math.round(cropRegion.x);
+    sy = Math.round(cropRegion.y);
+    sWidth = Math.round(cropRegion.width);
+    sHeight = Math.round(cropRegion.height);
   } else {
     // Default: center crop to square
-    const size = Math.min(image.width, image.height);
-    sx = (image.width - size) / 2;
-    sy = (image.height - size) / 2;
-    sWidth = size;
-    sHeight = size;
+    const cropSize = Math.min(image.width, image.height);
+    sx = Math.round((image.width - cropSize) / 2);
+    sy = Math.round((image.height - cropSize) / 2);
+    sWidth = cropSize;
+    sHeight = cropSize;
   }
   
-  // Disable smoothing for crisp pixels
+  // Disable smoothing for crisp pixels (Nearest Neighbor)
   ctx.imageSmoothingEnabled = false;
   
   // Draw cropped and scaled image
-  ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, 36, 36);
+  ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, size, size);
   
-  return ctx.getImageData(0, 0, 36, 36);
+  return ctx.getImageData(0, 0, size, size);
 }
 
 // Get default center crop for an image
@@ -205,9 +212,7 @@ export function processPixelArt(
   sourceData: ImageData,
   options: ProcessingOptions
 ): ProcessedResult {
-  const { data } = sourceData;
-  const width = 36;
-  const height = 36;
+  const { data, width, height } = sourceData;
   
   // Create output buffer
   const output = new Uint8ClampedArray(data.length);
@@ -496,33 +501,35 @@ export function drawToCanvas(
   imageData: ImageData,
   scale: number = 8
 ): void {
-  canvas.width = 36 * scale;
-  canvas.height = 36 * scale;
+  const { width, height } = imageData;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
   
   const ctx = canvas.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
   
   // Create temporary canvas for source
   const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = 36;
-  tempCanvas.height = 36;
+  tempCanvas.width = width;
+  tempCanvas.height = height;
   const tempCtx = tempCanvas.getContext('2d')!;
   tempCtx.putImageData(imageData, 0, 0);
   
   // Draw scaled up
-  ctx.drawImage(tempCanvas, 0, 0, 36, 36, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(tempCanvas, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
 }
 
 // Export as PNG
 export function exportAsPng(imageData: ImageData): void {
+  const { width, height } = imageData;
   const canvas = document.createElement('canvas');
-  canvas.width = 36;
-  canvas.height = 36;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d')!;
   ctx.putImageData(imageData, 0, 0);
   
   const link = document.createElement('a');
-  link.download = 'pixel-art-36x36.png';
+  link.download = `pixel-art-${width}x${height}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
 }
@@ -547,13 +554,13 @@ export interface UnityExportFormat {
 
 // Export as JSON for Unity
 export function exportAsJson(imageData: ImageData): void {
-  const data = imageData.data;
+  const { data, width, height } = imageData;
   const pixels: (PixelData | null)[][] = [];
   
-  for (let y = 0; y < 36; y++) {
+  for (let y = 0; y < height; y++) {
     const row: (PixelData | null)[] = [];
-    for (let x = 0; x < 36; x++) {
-      const i = (y * 36 + x) * 4;
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
@@ -595,8 +602,8 @@ export function exportAsJson(imageData: ImageData): void {
   
   const exportData: UnityExportFormat = {
     version: '1.0',
-    width: 36,
-    height: 36,
+    width: width,
+    height: height,
     palette: PALETTE_GROUPS.map(group => ({
       name: group.name,
       colors: group.colors.map(c => ({
@@ -612,7 +619,7 @@ export function exportAsJson(imageData: ImageData): void {
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement('a');
-  link.download = 'pixel-art-level.json';
+  link.download = `pixel-art-${width}x${height}.json`;
   link.href = url;
   link.click();
   

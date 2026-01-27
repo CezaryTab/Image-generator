@@ -27,6 +27,9 @@ import {
   drawToCanvas,
   exportAsJson,
   getDefaultCrop,
+  MIN_OUTPUT_SIZE,
+  MAX_OUTPUT_SIZE,
+  DEFAULT_OUTPUT_SIZE,
 } from '@/lib/pixelArtProcessor';
 
 const defaultOptions: ProcessingOptions = {
@@ -58,6 +61,7 @@ export default function Home() {
   const [cropRegion, setCropRegion] = useState<CropRegion | null>(null);
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; crop: CropRegion } | null>(null);
+  const [outputSize, setOutputSize] = useState<number>(DEFAULT_OUTPUT_SIZE);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +71,7 @@ export default function Home() {
   const processImage = useCallback(() => {
     if (!sourceImage || !cropRegion) return;
     
-    const sourceData = preprocessImage(sourceImage, cropRegion);
+    const sourceData = preprocessImage(sourceImage, outputSize, cropRegion);
     const result = processPixelArt(sourceData, options);
     
     setProcessedData(result.imageData);
@@ -76,7 +80,7 @@ export default function Home() {
     if (canvasRef.current) {
       drawToCanvas(canvasRef.current, result.imageData, 10);
     }
-  }, [sourceImage, cropRegion, options]);
+  }, [sourceImage, cropRegion, options, outputSize]);
 
   useEffect(() => {
     if (sourceImage && cropRegion) {
@@ -153,36 +157,74 @@ export default function Home() {
     const dx = (e.clientX - dragStart.x) / scale;
     const dy = (e.clientY - dragStart.y) / scale;
     
-    const minSize = 36;
+    // Calculate min/max crop size based on output constraints
+    const imageMinDim = Math.min(sourceImage.width, sourceImage.height);
+    const minCropSize = Math.max(MIN_OUTPUT_SIZE, imageMinDim * (MIN_OUTPUT_SIZE / MAX_OUTPUT_SIZE));
+    const maxCropSize = imageMinDim;
+    
     let newCrop = { ...dragStart.crop };
     
     if (dragHandle === 'move') {
       newCrop.x = Math.max(0, Math.min(sourceImage.width - newCrop.width, dragStart.crop.x + dx));
       newCrop.y = Math.max(0, Math.min(sourceImage.height - newCrop.height, dragStart.crop.y + dy));
     } else {
+      // For corner handles, use average delta to maintain square
+      // For edge handles, use the primary axis delta
+      let delta = 0;
+      
+      if (dragHandle === 'nw' || dragHandle === 'ne' || dragHandle === 'sw' || dragHandle === 'se') {
+        // Corner: average of both deltas, accounting for direction
+        const signX = dragHandle.includes('e') ? 1 : -1;
+        const signY = dragHandle.includes('s') ? 1 : -1;
+        delta = (dx * signX + dy * signY) / 2;
+      } else if (dragHandle === 'n' || dragHandle === 's') {
+        delta = dragHandle === 's' ? dy : -dy;
+      } else if (dragHandle === 'e' || dragHandle === 'w') {
+        delta = dragHandle === 'e' ? dx : -dx;
+      }
+      
+      // Calculate new size
+      let newSize = dragStart.crop.width + delta;
+      newSize = Math.max(minCropSize, Math.min(maxCropSize, newSize));
+      
+      // Constrain to image bounds
+      const maxFromX = sourceImage.width - dragStart.crop.x;
+      const maxFromY = sourceImage.height - dragStart.crop.y;
+      
+      // Adjust position based on handle
       if (dragHandle.includes('w')) {
-        const maxDx = dragStart.crop.width - minSize;
-        const actualDx = Math.max(-dragStart.crop.x, Math.min(maxDx, dx));
-        newCrop.x = dragStart.crop.x + actualDx;
-        newCrop.width = dragStart.crop.width - actualDx;
+        const sizeChange = newSize - dragStart.crop.width;
+        const newX = dragStart.crop.x - sizeChange;
+        if (newX < 0) {
+          newSize = dragStart.crop.width + dragStart.crop.x;
+        }
+        newCrop.x = Math.max(0, dragStart.crop.x - (newSize - dragStart.crop.width));
+      } else {
+        if (newSize > maxFromX) newSize = maxFromX;
       }
-      if (dragHandle.includes('e')) {
-        const maxWidth = sourceImage.width - dragStart.crop.x;
-        newCrop.width = Math.max(minSize, Math.min(maxWidth, dragStart.crop.width + dx));
-      }
+      
       if (dragHandle.includes('n')) {
-        const maxDy = dragStart.crop.height - minSize;
-        const actualDy = Math.max(-dragStart.crop.y, Math.min(maxDy, dy));
-        newCrop.y = dragStart.crop.y + actualDy;
-        newCrop.height = dragStart.crop.height - actualDy;
+        const sizeChange = newSize - dragStart.crop.height;
+        const newY = dragStart.crop.y - sizeChange;
+        if (newY < 0) {
+          newSize = dragStart.crop.height + dragStart.crop.y;
+        }
+        newCrop.y = Math.max(0, dragStart.crop.y - (newSize - dragStart.crop.height));
+      } else {
+        if (newSize > maxFromY) newSize = maxFromY;
       }
-      if (dragHandle.includes('s')) {
-        const maxHeight = sourceImage.height - dragStart.crop.y;
-        newCrop.height = Math.max(minSize, Math.min(maxHeight, dragStart.crop.height + dy));
-      }
+      
+      newSize = Math.max(minCropSize, newSize);
+      newCrop.width = newSize;
+      newCrop.height = newSize;
     }
     
     setCropRegion(newCrop);
+    
+    // Update output size based on crop size ratio
+    const cropRatio = newCrop.width / imageMinDim;
+    const newOutputSize = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * cropRatio);
+    setOutputSize(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputSize)));
   }, [dragHandle, dragStart, sourceImage, cropRegion, getImageDisplayScale]);
 
   const handleCropMouseUp = useCallback(() => {
@@ -206,15 +248,16 @@ export default function Home() {
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = 36 / rect.width;
-    const scaleY = 36 / rect.height;
+    const size = processedData.width;
+    const scaleX = size / rect.width;
+    const scaleY = size / rect.height;
     
     const pixelX = Math.floor((e.clientX - rect.left) * scaleX);
     const pixelY = Math.floor((e.clientY - rect.top) * scaleY);
     
-    if (pixelX < 0 || pixelX >= 36 || pixelY < 0 || pixelY >= 36) return;
+    if (pixelX < 0 || pixelX >= size || pixelY < 0 || pixelY >= size) return;
     
-    const i = (pixelY * 36 + pixelX) * 4;
+    const i = (pixelY * size + pixelX) * 4;
     const r = processedData.data[i];
     const g = processedData.data[i + 1];
     const b = processedData.data[i + 2];
@@ -266,7 +309,8 @@ export default function Home() {
       }
     }
     
-    const newImageData = new ImageData(newData, 36, 36);
+    const size = processedData.width;
+    const newImageData = new ImageData(newData, size, size);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
     
@@ -304,7 +348,8 @@ export default function Home() {
       }
     }
     
-    const newImageData = new ImageData(newData, 36, 36);
+    const size = processedData.width;
+    const newImageData = new ImageData(newData, size, size);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
     
@@ -326,6 +371,7 @@ export default function Home() {
         setSourceImage(img);
         setSourceImageUrl(e.target?.result as string);
         setCropRegion(getDefaultCrop(img.width, img.height));
+        setOutputSize(DEFAULT_OUTPUT_SIZE);
         setSelectedColor(null);
         setShowColorPicker(false);
       };
@@ -364,6 +410,7 @@ export default function Home() {
     setStats(null);
     setOptions(defaultOptions);
     setCropRegion(null);
+    setOutputSize(DEFAULT_OUTPUT_SIZE);
     setSelectedColor(null);
     setShowColorPicker(false);
   };
@@ -371,6 +418,7 @@ export default function Home() {
   const handleResetCrop = () => {
     if (sourceImage) {
       setCropRegion(getDefaultCrop(sourceImage.width, sourceImage.height));
+      setOutputSize(DEFAULT_OUTPUT_SIZE);
     }
   };
 
@@ -498,6 +546,9 @@ export default function Home() {
                 </h2>
                 {processedData && (
                   <div className="flex items-center gap-2">
+                    <Badge variant="secondary" data-testid="badge-output-size">
+                      {outputSize}x{outputSize}px
+                    </Badge>
                     <Button
                       size="sm"
                       variant="outline"
