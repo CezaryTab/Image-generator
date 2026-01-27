@@ -61,7 +61,8 @@ export default function Home() {
   const [cropRegion, setCropRegion] = useState<CropRegion | null>(null);
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; crop: CropRegion } | null>(null);
-  const [outputSize, setOutputSize] = useState<number>(DEFAULT_OUTPUT_SIZE);
+  const [outputWidth, setOutputWidth] = useState<number>(DEFAULT_OUTPUT_SIZE);
+  const [outputHeight, setOutputHeight] = useState<number>(DEFAULT_OUTPUT_SIZE);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +72,7 @@ export default function Home() {
   const processImage = useCallback(() => {
     if (!sourceImage || !cropRegion) return;
     
-    const sourceData = preprocessImage(sourceImage, outputSize, cropRegion);
+    const sourceData = preprocessImage(sourceImage, outputWidth, outputHeight, cropRegion);
     const result = processPixelArt(sourceData, options);
     
     setProcessedData(result.imageData);
@@ -80,7 +81,7 @@ export default function Home() {
     if (canvasRef.current) {
       drawToCanvas(canvasRef.current, result.imageData, 10);
     }
-  }, [sourceImage, cropRegion, options, outputSize]);
+  }, [sourceImage, cropRegion, options, outputWidth, outputHeight]);
 
   useEffect(() => {
     if (sourceImage && cropRegion) {
@@ -157,74 +158,58 @@ export default function Home() {
     const dx = (e.clientX - dragStart.x) / scale;
     const dy = (e.clientY - dragStart.y) / scale;
     
-    // Calculate min/max crop size based on output constraints
-    const imageMinDim = Math.min(sourceImage.width, sourceImage.height);
-    const minCropSize = Math.max(MIN_OUTPUT_SIZE, imageMinDim * (MIN_OUTPUT_SIZE / MAX_OUTPUT_SIZE));
-    const maxCropSize = imageMinDim;
-    
     let newCrop = { ...dragStart.crop };
     
     if (dragHandle === 'move') {
       newCrop.x = Math.max(0, Math.min(sourceImage.width - newCrop.width, dragStart.crop.x + dx));
       newCrop.y = Math.max(0, Math.min(sourceImage.height - newCrop.height, dragStart.crop.y + dy));
     } else {
-      // For corner handles, use average delta to maintain square
-      // For edge handles, use the primary axis delta
-      let delta = 0;
-      
-      if (dragHandle === 'nw' || dragHandle === 'ne' || dragHandle === 'sw' || dragHandle === 'se') {
-        // Corner: average of both deltas, accounting for direction
-        const signX = dragHandle.includes('e') ? 1 : -1;
-        const signY = dragHandle.includes('s') ? 1 : -1;
-        delta = (dx * signX + dy * signY) / 2;
-      } else if (dragHandle === 'n' || dragHandle === 's') {
-        delta = dragHandle === 's' ? dy : -dy;
-      } else if (dragHandle === 'e' || dragHandle === 'w') {
-        delta = dragHandle === 'e' ? dx : -dx;
-      }
-      
-      // Calculate new size
-      let newSize = dragStart.crop.width + delta;
-      newSize = Math.max(minCropSize, Math.min(maxCropSize, newSize));
-      
-      // Constrain to image bounds
-      const maxFromX = sourceImage.width - dragStart.crop.x;
-      const maxFromY = sourceImage.height - dragStart.crop.y;
-      
-      // Adjust position based on handle
-      if (dragHandle.includes('w')) {
-        const sizeChange = newSize - dragStart.crop.width;
-        const newX = dragStart.crop.x - sizeChange;
-        if (newX < 0) {
-          newSize = dragStart.crop.width + dragStart.crop.x;
+      // Handle width changes (east/west edges)
+      if (dragHandle.includes('e')) {
+        const newWidth = Math.max(1, dragStart.crop.width + dx);
+        newCrop.width = Math.min(newWidth, sourceImage.width - newCrop.x);
+      } else if (dragHandle.includes('w')) {
+        const newWidth = Math.max(1, dragStart.crop.width - dx);
+        const newX = dragStart.crop.x + (dragStart.crop.width - newWidth);
+        if (newX >= 0) {
+          newCrop.x = newX;
+          newCrop.width = newWidth;
+        } else {
+          newCrop.x = 0;
+          newCrop.width = dragStart.crop.x + dragStart.crop.width;
         }
-        newCrop.x = Math.max(0, dragStart.crop.x - (newSize - dragStart.crop.width));
-      } else {
-        if (newSize > maxFromX) newSize = maxFromX;
       }
       
-      if (dragHandle.includes('n')) {
-        const sizeChange = newSize - dragStart.crop.height;
-        const newY = dragStart.crop.y - sizeChange;
-        if (newY < 0) {
-          newSize = dragStart.crop.height + dragStart.crop.y;
+      // Handle height changes (north/south edges)
+      if (dragHandle.includes('s')) {
+        const newHeight = Math.max(1, dragStart.crop.height + dy);
+        newCrop.height = Math.min(newHeight, sourceImage.height - newCrop.y);
+      } else if (dragHandle.includes('n')) {
+        const newHeight = Math.max(1, dragStart.crop.height - dy);
+        const newY = dragStart.crop.y + (dragStart.crop.height - newHeight);
+        if (newY >= 0) {
+          newCrop.y = newY;
+          newCrop.height = newHeight;
+        } else {
+          newCrop.y = 0;
+          newCrop.height = dragStart.crop.y + dragStart.crop.height;
         }
-        newCrop.y = Math.max(0, dragStart.crop.y - (newSize - dragStart.crop.height));
-      } else {
-        if (newSize > maxFromY) newSize = maxFromY;
       }
-      
-      newSize = Math.max(minCropSize, newSize);
-      newCrop.width = newSize;
-      newCrop.height = newSize;
     }
     
     setCropRegion(newCrop);
     
-    // Update output size based on crop size ratio
-    const cropRatio = newCrop.width / imageMinDim;
-    const newOutputSize = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * cropRatio);
-    setOutputSize(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputSize)));
+    // Calculate output dimensions based on crop aspect ratio
+    // Map crop size to output size range (30-48)
+    const maxDim = Math.max(sourceImage.width, sourceImage.height);
+    const widthRatio = newCrop.width / maxDim;
+    const heightRatio = newCrop.height / maxDim;
+    
+    const newOutputWidth = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * widthRatio);
+    const newOutputHeight = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * heightRatio);
+    
+    setOutputWidth(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputWidth)));
+    setOutputHeight(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputHeight)));
   }, [dragHandle, dragStart, sourceImage, cropRegion, getImageDisplayScale]);
 
   const handleCropMouseUp = useCallback(() => {
@@ -248,16 +233,17 @@ export default function Home() {
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const size = processedData.width;
-    const scaleX = size / rect.width;
-    const scaleY = size / rect.height;
+    const width = processedData.width;
+    const height = processedData.height;
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
     
     const pixelX = Math.floor((e.clientX - rect.left) * scaleX);
     const pixelY = Math.floor((e.clientY - rect.top) * scaleY);
     
-    if (pixelX < 0 || pixelX >= size || pixelY < 0 || pixelY >= size) return;
+    if (pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height) return;
     
-    const i = (pixelY * size + pixelX) * 4;
+    const i = (pixelY * width + pixelX) * 4;
     const r = processedData.data[i];
     const g = processedData.data[i + 1];
     const b = processedData.data[i + 2];
@@ -309,8 +295,7 @@ export default function Home() {
       }
     }
     
-    const size = processedData.width;
-    const newImageData = new ImageData(newData, size, size);
+    const newImageData = new ImageData(newData, processedData.width, processedData.height);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
     
@@ -348,8 +333,7 @@ export default function Home() {
       }
     }
     
-    const size = processedData.width;
-    const newImageData = new ImageData(newData, size, size);
+    const newImageData = new ImageData(newData, processedData.width, processedData.height);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
     
@@ -371,7 +355,8 @@ export default function Home() {
         setSourceImage(img);
         setSourceImageUrl(e.target?.result as string);
         setCropRegion(getDefaultCrop(img.width, img.height));
-        setOutputSize(DEFAULT_OUTPUT_SIZE);
+        setOutputWidth(DEFAULT_OUTPUT_SIZE);
+        setOutputHeight(DEFAULT_OUTPUT_SIZE);
         setSelectedColor(null);
         setShowColorPicker(false);
       };
@@ -410,7 +395,8 @@ export default function Home() {
     setStats(null);
     setOptions(defaultOptions);
     setCropRegion(null);
-    setOutputSize(DEFAULT_OUTPUT_SIZE);
+    setOutputWidth(DEFAULT_OUTPUT_SIZE);
+    setOutputHeight(DEFAULT_OUTPUT_SIZE);
     setSelectedColor(null);
     setShowColorPicker(false);
   };
@@ -418,7 +404,8 @@ export default function Home() {
   const handleResetCrop = () => {
     if (sourceImage) {
       setCropRegion(getDefaultCrop(sourceImage.width, sourceImage.height));
-      setOutputSize(DEFAULT_OUTPUT_SIZE);
+      setOutputWidth(DEFAULT_OUTPUT_SIZE);
+      setOutputHeight(DEFAULT_OUTPUT_SIZE);
     }
   };
 
@@ -547,7 +534,7 @@ export default function Home() {
                 {processedData && (
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" data-testid="badge-output-size">
-                      {outputSize}x{outputSize}px
+                      {outputWidth}x{outputHeight}px
                     </Badge>
                     <Button
                       size="sm"

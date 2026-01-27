@@ -161,49 +161,53 @@ export const MIN_OUTPUT_SIZE = 30;
 export const MAX_OUTPUT_SIZE = 48;
 export const DEFAULT_OUTPUT_SIZE = 36;
 
-// Crop and scale image to specified output size
-export function preprocessImage(image: HTMLImageElement, outputSize: number = DEFAULT_OUTPUT_SIZE, cropRegion?: CropRegion): ImageData {
-  const size = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputSize)));
+// Crop and scale image to specified output dimensions (can be rectangular)
+export function preprocessImage(
+  image: HTMLImageElement, 
+  outputWidth: number = DEFAULT_OUTPUT_SIZE, 
+  outputHeight: number = DEFAULT_OUTPUT_SIZE,
+  cropRegion?: CropRegion
+): ImageData {
+  const width = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputWidth)));
+  const height = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputHeight)));
   
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d')!;
   
   let sx: number, sy: number, sWidth: number, sHeight: number;
   
   if (cropRegion) {
-    // Use custom crop region (must be square) - round to integers for Canvas API
+    // Use custom crop region - round to integers for Canvas API
     sx = Math.round(cropRegion.x);
     sy = Math.round(cropRegion.y);
     sWidth = Math.round(cropRegion.width);
     sHeight = Math.round(cropRegion.height);
   } else {
-    // Default: center crop to square
-    const cropSize = Math.min(image.width, image.height);
-    sx = Math.round((image.width - cropSize) / 2);
-    sy = Math.round((image.height - cropSize) / 2);
-    sWidth = cropSize;
-    sHeight = cropSize;
+    // Default: use full image
+    sx = 0;
+    sy = 0;
+    sWidth = image.width;
+    sHeight = image.height;
   }
   
   // Disable smoothing for crisp pixels (Nearest Neighbor)
   ctx.imageSmoothingEnabled = false;
   
   // Draw cropped and scaled image
-  ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, size, size);
+  ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, width, height);
   
-  return ctx.getImageData(0, 0, size, size);
+  return ctx.getImageData(0, 0, width, height);
 }
 
-// Get default center crop for an image
+// Get default crop for an image (uses full image dimensions)
 export function getDefaultCrop(imageWidth: number, imageHeight: number): CropRegion {
-  const size = Math.min(imageWidth, imageHeight);
   return {
-    x: (imageWidth - size) / 2,
-    y: (imageHeight - size) / 2,
-    width: size,
-    height: size,
+    x: 0,
+    y: 0,
+    width: imageWidth,
+    height: imageHeight,
   };
 }
 
