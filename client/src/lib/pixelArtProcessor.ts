@@ -1,8 +1,9 @@
-// Fixed 8-color palette with 2 darker shades each
+// Fixed 9-color palette with 1 lighter shade and 2 darker shades each
 export const PALETTE_GROUPS = [
   {
     name: 'Red',
     colors: [
+      { hex: 'FC8B8D', r: 252, g: 139, b: 141, shade: 'light' },
       { hex: 'FA181C', r: 250, g: 24, b: 28, shade: 'main' },
       { hex: 'B31114', r: 179, g: 17, b: 20, shade: 'dark' },
       { hex: '7F0A0C', r: 127, g: 10, b: 12, shade: 'darker' },
@@ -11,6 +12,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Orange',
     colors: [
+      { hex: 'FEC182', r: 254, g: 193, b: 130, shade: 'light' },
       { hex: 'FD8305', r: 253, g: 131, b: 5, shade: 'main' },
       { hex: 'B55E04', r: 181, g: 94, b: 4, shade: 'dark' },
       { hex: '804203', r: 128, g: 66, b: 3, shade: 'darker' },
@@ -19,6 +21,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Yellow',
     colors: [
+      { hex: 'FEF48C', r: 254, g: 244, b: 140, shade: 'light' },
       { hex: 'FDE91A', r: 253, g: 233, b: 26, shade: 'main' },
       { hex: 'B5A713', r: 181, g: 167, b: 19, shade: 'dark' },
       { hex: '80760D', r: 128, g: 118, b: 13, shade: 'darker' },
@@ -27,6 +30,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Green',
     colors: [
+      { hex: 'A4E582', r: 164, g: 229, b: 130, shade: 'light' },
       { hex: '49CB05', r: 73, g: 203, b: 5, shade: 'main' },
       { hex: '349104', r: 52, g: 145, b: 4, shade: 'dark' },
       { hex: '256603', r: 37, g: 102, b: 3, shade: 'darker' },
@@ -35,6 +39,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Cyan',
     colors: [
+      { hex: '9CD8ED', r: 156, g: 216, b: 237, shade: 'light' },
       { hex: '39B1DB', r: 57, g: 177, b: 219, shade: 'main' },
       { hex: '297F9D', r: 41, g: 127, b: 157, shade: 'dark' },
       { hex: '1D596F', r: 29, g: 89, b: 111, shade: 'darker' },
@@ -43,6 +48,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Blue',
     colors: [
+      { hex: 'A198E9', r: 161, g: 152, b: 233, shade: 'light' },
       { hex: '4432D4', r: 68, g: 50, b: 212, shade: 'main' },
       { hex: '312498', r: 49, g: 36, b: 152, shade: 'dark' },
       { hex: '23196B', r: 35, g: 25, b: 107, shade: 'darker' },
@@ -51,6 +57,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Purple',
     colors: [
+      { hex: 'BF8FE4', r: 191, g: 143, b: 228, shade: 'light' },
       { hex: '7F20CA', r: 127, g: 32, b: 202, shade: 'main' },
       { hex: '5B1791', r: 91, g: 23, b: 145, shade: 'dark' },
       { hex: '401066', r: 64, g: 16, b: 102, shade: 'darker' },
@@ -59,6 +66,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Pink',
     colors: [
+      { hex: 'EDA2E7', r: 237, g: 162, b: 231, shade: 'light' },
       { hex: 'DB45D0', r: 219, g: 69, b: 208, shade: 'main' },
       { hex: '9D3195', r: 157, g: 49, b: 149, shade: 'dark' },
       { hex: '6F2369', r: 111, g: 35, b: 105, shade: 'darker' },
@@ -67,6 +75,7 @@ export const PALETTE_GROUPS = [
   {
     name: 'Gray',
     colors: [
+      { hex: 'D7D7D7', r: 215, g: 215, b: 215, shade: 'light' },
       { hex: 'AFAFAF', r: 175, g: 175, b: 175, shade: 'main' },
       { hex: '949494', r: 148, g: 148, b: 148, shade: 'dark' },
       { hex: '605F5F', r: 96, g: 95, b: 95, shade: 'darker' },
