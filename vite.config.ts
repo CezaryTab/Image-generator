@@ -3,7 +3,10 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+const isGitHubPages = process.env.GITHUB_PAGES === "true";
+
 export default defineConfig({
+  base: isGitHubPages ? "/Image-generator/" : "/",
   plugins: [
     react(),
     runtimeErrorOverlay(),
