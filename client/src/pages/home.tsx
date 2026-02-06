@@ -27,9 +27,6 @@ import {
   drawToCanvas,
   exportAsJson,
   getDefaultCrop,
-  MIN_OUTPUT_SIZE,
-  MAX_OUTPUT_SIZE,
-  DEFAULT_OUTPUT_SIZE,
 } from '@/lib/pixelArtProcessor';
 
 const defaultOptions: ProcessingOptions = {
@@ -61,8 +58,8 @@ export default function Home() {
   const [cropRegion, setCropRegion] = useState<CropRegion | null>(null);
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; crop: CropRegion } | null>(null);
-  const [outputWidth, setOutputWidth] = useState<number>(DEFAULT_OUTPUT_SIZE);
-  const [outputHeight, setOutputHeight] = useState<number>(DEFAULT_OUTPUT_SIZE);
+  const [outputWidth, setOutputWidth] = useState<number>(0);
+  const [outputHeight, setOutputHeight] = useState<number>(0);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +76,9 @@ export default function Home() {
     setStats(result.stats);
     
     if (canvasRef.current) {
-      drawToCanvas(canvasRef.current, result.imageData, 10);
+      const maxDisplaySize = 400;
+      const scale = Math.max(1, Math.floor(maxDisplaySize / Math.max(result.imageData.width, result.imageData.height)));
+      drawToCanvas(canvasRef.current, result.imageData, scale);
     }
   }, [sourceImage, cropRegion, options, outputWidth, outputHeight]);
 
@@ -198,18 +197,10 @@ export default function Home() {
     }
     
     setCropRegion(newCrop);
-    
-    // Calculate output dimensions based on crop aspect ratio
-    // Map crop size to output size range (30-48)
-    const maxDim = Math.max(sourceImage.width, sourceImage.height);
-    const widthRatio = newCrop.width / maxDim;
-    const heightRatio = newCrop.height / maxDim;
-    
-    const newOutputWidth = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * widthRatio);
-    const newOutputHeight = Math.round(MIN_OUTPUT_SIZE + (MAX_OUTPUT_SIZE - MIN_OUTPUT_SIZE) * heightRatio);
-    
-    setOutputWidth(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputWidth)));
-    setOutputHeight(Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, newOutputHeight)));
+
+    // Output dimensions match the crop region size
+    setOutputWidth(Math.max(1, Math.round(newCrop.width)));
+    setOutputHeight(Math.max(1, Math.round(newCrop.height)));
   }, [dragHandle, dragStart, sourceImage, cropRegion, getImageDisplayScale]);
 
   const handleCropMouseUp = useCallback(() => {
@@ -298,11 +289,13 @@ export default function Home() {
     const newImageData = new ImageData(newData, processedData.width, processedData.height);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
-    
+
     if (canvasRef.current) {
-      drawToCanvas(canvasRef.current, newImageData, 10);
+      const maxDisplaySize = 400;
+      const scale = Math.max(1, Math.floor(maxDisplaySize / Math.max(newImageData.width, newImageData.height)));
+      drawToCanvas(canvasRef.current, newImageData, scale);
     }
-    
+
     setSelectedColor(null);
     setShowColorPicker(false);
   };
@@ -336,11 +329,13 @@ export default function Home() {
     const newImageData = new ImageData(newData, processedData.width, processedData.height);
     setProcessedData(newImageData);
     recalculateStats(newImageData);
-    
+
     if (canvasRef.current) {
-      drawToCanvas(canvasRef.current, newImageData, 10);
+      const maxDisplaySize = 400;
+      const scale = Math.max(1, Math.floor(maxDisplaySize / Math.max(newImageData.width, newImageData.height)));
+      drawToCanvas(canvasRef.current, newImageData, scale);
     }
-    
+
     setSelectedColor(null);
     setShowColorPicker(false);
   };
@@ -355,8 +350,8 @@ export default function Home() {
         setSourceImage(img);
         setSourceImageUrl(e.target?.result as string);
         setCropRegion(getDefaultCrop(img.width, img.height));
-        setOutputWidth(DEFAULT_OUTPUT_SIZE);
-        setOutputHeight(DEFAULT_OUTPUT_SIZE);
+        setOutputWidth(img.width);
+        setOutputHeight(img.height);
         setSelectedColor(null);
         setShowColorPicker(false);
       };
@@ -395,8 +390,8 @@ export default function Home() {
     setStats(null);
     setOptions(defaultOptions);
     setCropRegion(null);
-    setOutputWidth(DEFAULT_OUTPUT_SIZE);
-    setOutputHeight(DEFAULT_OUTPUT_SIZE);
+    setOutputWidth(0);
+    setOutputHeight(0);
     setSelectedColor(null);
     setShowColorPicker(false);
   };
@@ -404,8 +399,8 @@ export default function Home() {
   const handleResetCrop = () => {
     if (sourceImage) {
       setCropRegion(getDefaultCrop(sourceImage.width, sourceImage.height));
-      setOutputWidth(DEFAULT_OUTPUT_SIZE);
-      setOutputHeight(DEFAULT_OUTPUT_SIZE);
+      setOutputWidth(sourceImage.width);
+      setOutputHeight(sourceImage.height);
     }
   };
 
@@ -519,7 +514,7 @@ export default function Home() {
             <h1 className="text-3xl font-bold tracking-tight">Pixel Art Converter</h1>
           </div>
           <p className="text-muted-foreground max-w-lg mx-auto">
-            Transform any image into minimalistic 36x36 pixel art with a curated 9-color palette
+            Transform any image into minimalistic pixel art with a curated 9-color palette
           </p>
         </header>
 
@@ -629,7 +624,7 @@ export default function Home() {
                   </div>
                   <div>
                     <Label className="text-sm text-muted-foreground mb-3 block">
-                      Pixel Art Output (36x36) — Click to edit colors
+                      Pixel Art Output ({outputWidth}x{outputHeight}) — Click to edit colors
                     </Label>
                     <div 
                       className="bg-muted rounded-md p-4 flex items-center justify-center min-h-[320px] relative"
@@ -639,7 +634,7 @@ export default function Home() {
                           <canvas
                             ref={canvasRef}
                             className="crisp-pixels rounded border border-border cursor-crosshair"
-                            style={{ width: 288, height: 288 }}
+                            style={{ maxWidth: 400, maxHeight: 400, width: '100%', height: 'auto' }}
                             onClick={handleCanvasClick}
                             data-testid="canvas-preview"
                           />
@@ -773,8 +768,8 @@ export default function Home() {
                 <div className="grid grid-cols-3 sm:grid-cols-9 gap-3">
                   {PALETTE_GROUPS.map((group) => {
                     const count = stats.paletteUsage.get(group.name) || 0;
-                    const total = 36 * 36;
-                    const percent = ((count / total) * 100).toFixed(1);
+                    const total = outputWidth * outputHeight;
+                    const percent = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
                     
                     return (
                       <div key={group.name} className="text-center">
