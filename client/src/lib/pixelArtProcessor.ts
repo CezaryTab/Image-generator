@@ -561,7 +561,7 @@ export interface UnityExportFormat {
 }
 
 // Export as JSON for Unity
-export function exportAsJson(imageData: ImageData): void {
+export function exportAsJson(imageData: ImageData, fileName?: string): void {
   const { data, width, height } = imageData;
   const pixels: (PixelData | null)[][] = [];
   
@@ -627,7 +627,7 @@ export function exportAsJson(imageData: ImageData): void {
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement('a');
-  link.download = `pixel-art-${width}x${height}.json`;
+  link.download = fileName ? `${fileName}.json` : `pixel-art-${width}x${height}.json`;
   link.href = url;
   link.click();
   

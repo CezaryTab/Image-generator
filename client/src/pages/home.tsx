@@ -47,6 +47,7 @@ type DragHandle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | 'move' | n
 
 export default function Home() {
   const [sourceImage, setSourceImage] = useState<HTMLImageElement | null>(null);
+  const [sourceFileName, setSourceFileName] = useState<string>('');
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
   const [processedData, setProcessedData] = useState<ImageData | null>(null);
   const [stats, setStats] = useState<ProcessingStats | null>(null);
@@ -342,12 +343,14 @@ export default function Home() {
 
   const handleFileUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return;
-    
+
+    const baseName = file.name.replace(/\.[^/.]+$/, '');
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         setSourceImage(img);
+        setSourceFileName(baseName);
         setSourceImageUrl(e.target?.result as string);
         setCropRegion(getDefaultCrop(img.width, img.height));
         setOutputWidth(img.width);
@@ -379,12 +382,13 @@ export default function Home() {
 
   const handleExport = () => {
     if (processedData) {
-      exportAsJson(processedData);
+      exportAsJson(processedData, sourceFileName);
     }
   };
 
   const handleReset = () => {
     setSourceImage(null);
+    setSourceFileName('');
     setSourceImageUrl(null);
     setProcessedData(null);
     setStats(null);
