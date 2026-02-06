@@ -165,20 +165,15 @@ function findNearestPaletteColor(
   return { color: nearest, distance: minDist };
 }
 
-// Output size constraints
-export const MIN_OUTPUT_SIZE = 30;
-export const MAX_OUTPUT_SIZE = 48;
-export const DEFAULT_OUTPUT_SIZE = 36;
-
 // Crop and scale image to specified output dimensions (can be rectangular)
 export function preprocessImage(
-  image: HTMLImageElement, 
-  outputWidth: number = DEFAULT_OUTPUT_SIZE, 
-  outputHeight: number = DEFAULT_OUTPUT_SIZE,
+  image: HTMLImageElement,
+  outputWidth: number,
+  outputHeight: number,
   cropRegion?: CropRegion
 ): ImageData {
-  const width = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputWidth)));
-  const height = Math.max(MIN_OUTPUT_SIZE, Math.min(MAX_OUTPUT_SIZE, Math.round(outputHeight)));
+  const width = Math.max(1, Math.round(outputWidth));
+  const height = Math.max(1, Math.round(outputHeight));
   
   const canvas = document.createElement('canvas');
   canvas.width = width;
